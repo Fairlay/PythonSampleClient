@@ -1,7 +1,7 @@
 import json
 import socket
 import gzip
-import StringIO
+import io
 import base64
 import sys
 import time
@@ -58,7 +58,8 @@ class FairlayPythonClient(object):
         38: 'Cycling',
         39: 'reserved9',
         40: 'Bitcoin',
-        42: 'Badminton'
+        42: 'Badminton',
+        131:'Dice'
     }
 
     MARKET_TYPE = {
@@ -149,7 +150,7 @@ class FairlayPythonClient(object):
         'SERVERIP': '31.172.83.53',
         'PORT': 18017,
         'APIAccountID': 1,
-        'ID': 'CHANGETHIS',
+        'ID': '!!!USER_ID_CHANGE_THIS!!!!',
         'SERVERPUBLICKEY': ('-----BEGIN PUBLIC KEY-----\n'
                             'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC52cTT4XaVIUsmzfDJBP/ZbneO\n'
                             '6qHWFb01oTBYx95+RXwUdQlOAlAg0Gu+Nr8iLqLVbam0GE2OKfrcrSy0mYUCt2Lv\n'
@@ -185,19 +186,19 @@ class FairlayPythonClient(object):
             with open('config.txt', 'w') as config:
                 json.dump(self.CONFIG, config, indent=4)
 
-            print '==================================================================='
-            print 'It appears that you don\'t have a config file, so we created'
-            print 'a new one with a brand new key pair.'
-            print ''
-            print 'Please visit:  http://fairlay.com/user/dev and register a new API'
-            print 'Account with the following public key:'
-            print ''
-            print self.CONFIG['PublicRSAKey']
-            print ''
-            print '** Don\'t forget to to change ID and APIAccountID fields in'
-            print '   the config.txt file.'
-            print '==================================================================='
-            print ''
+            print ('===================================================================')
+            print ('It appears that you don\'t have a config file, so we created')
+            print ('a new one with a brand new key pair.')
+            print ('')
+            print ('Please visit:  http://fairlay.com/user/dev and register a new API')
+            print ('Account with the following public key:')
+            print ('')
+            print (self.CONFIG['PublicRSAKey'])
+            print ('')
+            print ('** Don\'t forget to to change ID and APIAccountID fields in')
+            print ('   the config.txt file.')
+            print ('===================================================================')
+            print ('')
             sys.exit(0)
 
     def __generate_keys(self, bits=2048):
@@ -215,28 +216,28 @@ class FairlayPythonClient(object):
         if data:
             message += '|' + data
         sign = self.__sign_message(message)
-        message = '{}|{}<ENDOFDATA>'.format(sign, message)
-
+        message = '{}|{}<ENDOFDATA>'.format(str(sign,'utf-8'), message)
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(15)
             s.connect((self.CONFIG['SERVERIP'], self.CONFIG['PORT']))
-            s.send(message)
+            s.send(bytes(message,'utf-8'))
 
-            data = ''
+            data = b''
             while True:
                 new_data = s.recv(4096)
                 if not new_data:
                     break
                 data += new_data
             s.close()
-            response = gzip.GzipFile(fileobj=StringIO.StringIO(data)).read()
-        except socket.timeout, socket.error:
+            response = gzip.GzipFile(fileobj=io.BytesIO(data)).read()
+        except (socket.timeout, socket.error) as error:
             return
 
         if not self.__verify_response(response):
             raise ValueError
 
+        response = str(response)
         response = response.split('|')[-1]
 
         if response == 'XError: Service unavailable':
@@ -248,7 +249,7 @@ class FairlayPythonClient(object):
         return response
 
     def __verify_response(self, message):
-        idx = message.find('|')
+        idx = message.find(b'|')
         if idx == -1:
             return True
 
@@ -258,14 +259,14 @@ class FairlayPythonClient(object):
         signer = PKCS1_v1_5.new(key)
         digest = SHA512.new()
         digest.update(original_message)
-        if signer.verify(digest, base64.b64decode(signed_message + "=" * ((4 - len(signed_message) % 4) % 4))):
+        if signer.verify(digest, base64.b64decode(signed_message + b"=" * ((4 - len(signed_message) % 4) % 4))):
             return True
 
     def __sign_message(self, message):
         key = RSA.importKey(self.CONFIG['PrivateRSAKey'])
         signer = PKCS1_v1_5.new(key)
         digest = SHA512.new()
-        digest.update(message)
+        digest.update(bytes(message,'utf-8'))
         sign = signer.sign(digest)
         return base64.b64encode(sign)
 
@@ -363,7 +364,7 @@ class FairlayPythonClient(object):
             except ValueError:
                 return None
 
-    def get_orders(self, order_type, timestamp=1420070400L, market_id=None):
+    def get_orders(self, order_type, timestamp=1420070400, market_id=None):
         '''
             When two open orders are matched, a Matched Order is created in the PENDING state.
             If the maker of the bet cancels his bet within a certain time period (usually 0, 3 or 6 seconds depending on the market)
