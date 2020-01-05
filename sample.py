@@ -14,7 +14,7 @@ class SampleFairlayMonitoring(object):
     should_create = True
 
     def __init__(self):
-        super(SampleFailrayMonitoring, self).__init__()
+        super(SampleFairlayMonitoring, self).__init__()
         self.client = FairlayPythonClient()
         self.event = threading.Event()
 
